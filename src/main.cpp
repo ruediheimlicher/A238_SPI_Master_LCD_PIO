@@ -173,12 +173,14 @@ void loop()
 			 
 
       loopcount1++;
-      if(loopcount1 > 0x2F)
+      if(loopcount1 > 0x8F)
         {
           
           ADC_Wert0 = readKanal(ADC_PIN_0) >> 2;
-          out_data[0] = ADC_Wert0;
+         
           ADC_Wert1 = readKanal(ADC_PIN_1) >> 2;
+
+          out_data[0] = ADC_Wert0;
           out_data[1] = ADC_Wert1;
 
           transferindex &= 0x07;
@@ -190,7 +192,7 @@ void loop()
               SPI_CS_LO;
               SPI_MasterTransmit(out_data[2*paketnummer]); 
               SPI_CS_HI;
-              _delay_us(2);
+              _delay_us(20);
               SPI_CS_LO;
               SPI_MasterTransmit(out_data[2*paketnummer+1]); 
               SPI_CS_HI;
@@ -263,8 +265,14 @@ void loop()
 
             lcd_gotoxy(16,0);
             lcd_putint(transferindex);
-            lcd_gotoxy(16,1);
-            lcd_putint(in_data[5]);
+            lcd_gotoxy(0,1);
+            lcd_putint(out_data[0]);
+            lcd_gotoxy(4,1);
+            lcd_putint(out_data[1]);
+            lcd_gotoxy(8,1);
+            lcd_putint(out_data[2]);
+            lcd_gotoxy(12,1);
+            lcd_putint(out_data[3]);
             loopcount2++;
 
             transferindex++;
