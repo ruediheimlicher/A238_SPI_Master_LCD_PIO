@@ -56,6 +56,8 @@ volatile uint8_t transferindex = 0; // pos von data auf SPI
 volatile uint8_t out_data[BUFSIZE];
 volatile uint8_t in_data[BUFSIZE];
 
+uint8_t paketnummer = 0;
+
 
 unsigned char spi_tranceiver (unsigned char data)
 {
@@ -90,6 +92,7 @@ void SPI_MasterInit(void) {
     
     // Enable SPI, set as master, and set clock rate fck/4
     SPCR = (1<<SPE)|(1<<MSTR);
+    SPSR |= (1<<SPI2X);
 }
 
 void SPI_MasterTransmit(char cData) 
@@ -117,15 +120,15 @@ void setup()
   SPI_MasterInit();
   
   // ADC
-ADC_DDR &= ~(1<<ADC_PIN_0);
-ADC_DDR &= ~(1<<ADC_PIN_1);
+  ADC_DDR &= ~(1<<ADC_PIN_0);
+  ADC_DDR &= ~(1<<ADC_PIN_1);
 
-initADC(ADC_PIN_0);
+  initADC(ADC_PIN_0);
 
-#define COMP_ADC_DDR DDRC
+  #define COMP_ADC_DDR DDRC
 
-#define COMP_ADC_PIN_A  4
-#define COMP_ADC_PIN_B  5
+  #define COMP_ADC_PIN_A  4
+  #define COMP_ADC_PIN_B  5
 
   
   //LCD 
@@ -140,24 +143,13 @@ initADC(ADC_PIN_0);
 	lcd_puts("SPI LCD Master");
  	
 	  _delay_ms(1000);
+  lcd_clr_line(0);
+   // codes fuer 1. byte
+  out_data[0] = 0xFF; // sync
+  out_data[2] = 101;
+  out_data[4] = 102;
+  out_data[6] = 103;
 
-}
-void parse_message()
-{
-
- switch(incoming[0]) 
- {
- case 2:
-   //flash_led(incoming[1])
-	;break;
- default:
-   PORTD ^=(1<<1);//LED 1 toggeln
-	;
- }
- out_data[2] = 111;
- out_data[3] = 112;
-  out_data[4] = 221;
- out_data[5] = 222;
 }
 
 
@@ -173,109 +165,85 @@ void loop()
 			 
 
       loopcount1++;
-      if(loopcount1 > 0x8F)
+      if(loopcount1 > 0x0F)
         {
           
           ADC_Wert0 = readKanal(ADC_PIN_0) >> 2;
          
           ADC_Wert1 = readKanal(ADC_PIN_1) >> 2;
-
-          out_data[0] = ADC_Wert0;
-          out_data[1] = ADC_Wert1;
-
+          uint8_t adcdiff = (ADC_Wert0 > ADC_Wert1) ? (ADC_Wert0 - ADC_Wert1) : (ADC_Wert1 - ADC_Wert0);
+          
           transferindex &= 0x07;
-          out_data[6] = transferindex;
-          out_data[7] = 0xFF;
-          uint8_t paketnummer = transferindex%4;
+          out_data[1] = transferindex; // data sync     
+          out_data[3] = ADC_Wert0;      // data 0
+          out_data[5] = ADC_Wert1;      // data 1
+          out_data[7] = adcdiff;        // data 2
+          
+
+          paketnummer = transferindex%4; // pos im paket 01 23 45 67
           
             
               SPI_CS_LO;
               SPI_MasterTransmit(out_data[2*paketnummer]); 
               SPI_CS_HI;
-              _delay_us(20);
+              _delay_us(2);
               SPI_CS_LO;
               SPI_MasterTransmit(out_data[2*paketnummer+1]); 
               SPI_CS_HI;
             
+            /*
+            lcd_gotoxy(0,0);
+            lcd_putint(paketnummer);
+            lcd_gotoxy(4,0);
+            lcd_putint(out_data[2*paketnummer]);
+            //lcd_putint(out_data[2]);
+
+            lcd_gotoxy(8,0);
+            lcd_putint(out_data[2*paketnummer+1]);
+            */
+
+            //lcd_gotoxy(17,0);
+            //lcd_putint(transferindex);
+            //lcd_gotoxy(17,1);
+            //lcd_putint(paketnummer);
+            /*
+            lcd_gotoxy(0,0);
+            lcd_putint(out_data[0]);
+            lcd_gotoxy(4,0);
+            lcd_putint(out_data[2]);
+            lcd_gotoxy(8,0);
+            lcd_putint(out_data[4]);
+            lcd_gotoxy(12,0);
+            lcd_putint(out_data[6]);
+            */
+            lcd_gotoxy(0,1);
+            lcd_putint(out_data[1]);
+            lcd_gotoxy(4,1);
+            lcd_putint(out_data[3]);
+            lcd_gotoxy(8,1);
+            lcd_putint(out_data[5]);
+            lcd_gotoxy(12,1);
+            lcd_putint(out_data[7]);
             transferindex++;
           
-
-          /*
-          switch (transferindex)
-          {
-            case 0:
-            {
-              SPI_CS_LO;
-              SPI_MasterTransmit(ADC_Wert0); 
-              SPI_CS_HI;
-            }break;
-            case 1:
-            {
-              SPI_CS_LO;
-              SPI_MasterTransmit(ADC_Wert1); 
-              SPI_CS_HI;
-            }break;
-            case 2:
-            {
-              SPI_CS_LO;
-              SPI_MasterTransmit(11); 
-              SPI_CS_HI;
-
-            }break;
-
-            case 3:
-            {
-              SPI_CS_LO;
-              SPI_MasterTransmit(22); 
-              SPI_CS_HI;
-            }break;
-            case 4:
-            {
-              SPI_CS_LO;
-              SPI_MasterTransmit(33); 
-              SPI_CS_HI;
-            }break;
-            case 5:
-            {
-              SPI_CS_LO;
-              SPI_MasterTransmit(44); 
-              //in_data[transferindex] =  spi_tranceiver[44];
-              SPI_CS_HI;
-            }break;
-            case 6:
-            {
-              SPI_CS_LO;
-              SPI_MasterTransmit(spicheck++); 
-              SPI_CS_HI;
-            }break;
-            case 7:
-            {
-              
-              SPI_CS_LO;
-              SPI_MasterTransmit(0xFF); 
-              SPI_CS_HI;
-              //transferindex = 0;
-            }break;
-
-          }// switch
-          */
           
             LOOPLEDPORT ^=(1<<LOOPLED);
             loopcount1 = 0;
-
+            /*
             lcd_gotoxy(16,0);
             lcd_putint(transferindex);
             lcd_gotoxy(0,1);
-            lcd_putint(out_data[0]);
-            lcd_gotoxy(4,1);
             lcd_putint(out_data[1]);
-            lcd_gotoxy(8,1);
-            lcd_putint(out_data[2]);
-            lcd_gotoxy(12,1);
+            lcd_gotoxy(4,1);
             lcd_putint(out_data[3]);
+            lcd_gotoxy(8,1);
+            lcd_putint(out_data[5]);
+            lcd_gotoxy(12,1);
+            lcd_putint(out_data[7]);
+            */
             loopcount2++;
 
-            transferindex++;
+            //transferindex++;
  
         }
   }// loopcount
